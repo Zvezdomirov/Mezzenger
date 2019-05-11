@@ -1,15 +1,19 @@
+package server;
+
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.text.MessageFormat;
+
+import static server.ServerConsts.*;
 
 public class Server extends JFrame {
+
     private JTextField userText;
     private JTextArea chatWindow;
     private ObjectOutputStream output;
@@ -18,38 +22,34 @@ public class Server extends JFrame {
     private Socket connection;
 
     public Server() {
-        super("Mezzenger");
+        super(SERVER_NAME);
         userText = new JTextField();
         userText.setEditable(false);
         userText.addActionListener(
-                new ActionListener() {
-
-                    @Override
-                    public void actionPerformed(ActionEvent event) {
-                        sendMessage(event.getActionCommand());
-                        userText.setText("");
-                    }
+                event -> {
+                    sendMessage(event.getActionCommand());
+                    userText.setText(DEFAULT_USER_TEXT);
                 }
         );
         add(userText, BorderLayout.NORTH);
         chatWindow = new JTextArea();
         add(new JScrollPane(chatWindow));
-        setSize(300, 150);
+        setSize(DEFAULT_WINDOW_WIDTH,
+                DEFAULT_WINDOW_HEIGHT);
         setVisible(true);
-
-        //set up and run the server
     }
 
+    //set up and run the server
     public void run() {
         try {
-            server = new ServerSocket(6789, 100);
+            server = new ServerSocket(PORT, 100);
             while (true) {
                 try {
                     waitForConnection();
                     setupStreams();
                     whileChatting();
                 } catch (EOFException e) {
-                    showMessage("\n Server ended the connection!");
+                    showMessage(CONNECTION_TERMINATION_MESSAGE);
                 } finally {
                     closeStuff();
                 }
@@ -61,9 +61,11 @@ public class Server extends JFrame {
 
     //listen for connection, then display connection information
     private void waitForConnection() throws IOException {
-        showMessage("Waiting for someone to connect... ");
+        showMessage(WAITING_FOR_CONNECTION);
         connection = server.accept();
-        showMessage("Now connected to " + connection.getInetAddress().getHostName());
+        String message = MessageFormat.format(CONNECTED_TO_CLIENT,
+                connection.getInetAddress().getHostName());
+        showMessage(message);
     }
 
     private void setupStreams() throws IOException {
@@ -80,15 +82,16 @@ public class Server extends JFrame {
         do {
             try {
                 message = (String) input.readObject();
+                showMessage("\n" + message);
             } catch (IOException | ClassNotFoundException e) {
                 e.printStackTrace();
             }
-        } while (!message.equals("CLIENT - END"));
+        } while (!message.equals(END_CONNECTION_KEYWORD));
     }
 
-    //close streams and sockets after you are done chatting
+    //close streams and sockets after done chatting
     private void closeStuff() {
-        showMessage("\nClosing connections...\n");
+        showMessage("\nClosing connections...");
         ableToType(false);
         try {
             output.close();
@@ -103,19 +106,21 @@ public class Server extends JFrame {
     private void sendMessage(String message) {
         try {
             output.writeObject("SERVER - " + message);
+            output.flush();
+            showMessage("\nSERVER - " + message);
         } catch (IOException e) {
-            chatWindow.append("\n ERROR: Message cannot be sent.");
+            chatWindow.append(SEND_MESSAGE_FAIL);
         }
     }
 
     //updates chat window
-    private void showMessage(final String text) {
-        SwingUtilities.invokeLater(() -> chatWindow.append(text));
+    private void showMessage(final String message) {
+        SwingUtilities.invokeLater(() -> chatWindow.append(message));
     }
 
     //let the user type stuff into their box
-    private void ableToType(final boolean tof) {
-        SwingUtilities.invokeLater(() -> userText.setEditable(tof));
+    private void ableToType(final boolean isAble) {
+        SwingUtilities.invokeLater(() -> userText.setEditable(isAble));
     }
 
 
